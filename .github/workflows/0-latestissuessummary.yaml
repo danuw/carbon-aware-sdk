@@ -10,11 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Set up GitHub CLI
-        uses: actions/setup-gh-cli@v1
 
       - name: Check for recent agenda and find previous agenda
         id: get-agendas
