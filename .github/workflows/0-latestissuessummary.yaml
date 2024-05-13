@@ -1,0 +1,67 @@
+name: Agenda Checker
+
+on:
+  schedule:
+    - cron: '50 6 * * 2' # Runs every Tuesday at 7:50 AM UTC (which is 7:50 AM UK time when DST is not in effect)
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  agenda-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up GitHub CLI
+        uses: actions/setup-gh-cli@v1
+
+      - name: Check for recent agenda and find previous agenda
+        id: get-agendas
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the current date and time in ISO 8601 format
+          current_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Fetch issues with the "agenda" label created in the last 24 hours
+          recent_agendas=$(gh issue list -R Green-Software-Foundation/carbon-aware-sdk --label agenda --state open --json number,createdAt --jq '.[] | select((now - (.createdAt | fromdateiso8601)) < 86400)')
+          
+          if [ -z "$recent_agendas" ]; then
+            echo "No recent agendas found"
+            exit 0
+          fi
+          
+          recent_agenda_number=$(echo "$recent_agendas" | jq -r '.number')
+
+          # Fetch the most recent previous agenda issue
+          previous_agenda=$(gh issue list -R Green-Software-Foundation/carbon-aware-sdk --label agenda --state all --sort created --json number,createdAt --limit 2)
+          previous_date=$(echo "$previous_agenda" | jq -r '.[1].createdAt')
+
+          # Set outputs
+          echo "::set-output name=recent_agenda_number::$recent_agenda_number"
+          echo "::set-output name=previous_date::$previous_date"
+
+      - name: List PRs and Issues since the last agenda
+        if: steps.get-agendas.outputs.recent_agenda_number != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          recent_agenda_number=${{ steps.get-agendas.outputs.recent_agenda_number }}
+          previous_date=${{ steps.get-agendas.outputs.previous_date }}
+
+          # List PRs since the previous agenda date
+          prs=$(gh pr list -R Green-Software-Foundation/carbon-aware-sdk --search "-label:agenda closed:>=$previous_date" --json number,title,url --template \
+          '{{range .}}{{ printf "\n-[PR #%v]" .number | autocolor "green"}} {{.title}} {{ printf "](%v)" .url}}{{end}}')
+
+          # List Issues since the previous agenda date
+          issues=$(gh issue list -R Green-Software-Foundation/carbon-aware-sdk --search "-label:agenda closed:>=$previous_date" --json number,title,url --template \
+          '{{range .}}{{ printf "\n-[#%v]" .number | autocolor "green"}} {{.title}} {{ printf "](%v)" .url}}{{end}}')
+
+          # Combine the results
+          output="### Pull Requests:\n$prs\n\n### Issues:\n$issues"
+
+          echo "$output"
+
+          # Post a comment to the most recent agenda
+          gh issue comment $recent_agenda_number --body "$output"
