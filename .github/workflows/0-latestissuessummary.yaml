@@ -30,7 +30,7 @@ jobs:
           recent_agenda_number=$(echo "$recent_agendas" | jq -r '.number')
 
           # Fetch the most recent previous agenda issue
-          previous_agenda=$(gh issue list -R Green-Software-Foundation/carbon-aware-sdk --label agenda --state all --sort created --json number,createdAt --limit 2)
+          previous_agenda=$(gh issue list -R Green-Software-Foundation/carbon-aware-sdk --label agenda --state all --search "sort:created" --json number,createdAt --limit 2)
           previous_date=$(echo "$previous_agenda" | jq -r '.[1].createdAt')
 
           # Set outputs
