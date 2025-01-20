@@ -1,0 +1,35 @@
+# Workflow to remove "Ready for review" label on closed PRs or Issues
+# prefixed as 1.1 as it happens automatically right after a PR completes or on issues closed (in particualr as a result of PRs completed)
+
+name: Remove "Ready for review" label on closed PRs or Issues
+
+on:
+  issues:
+    types: [closed]
+  pull_request:
+    types: [closed]
+
+jobs:
+  remove-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove "Ready for review" label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const label = "Ready for review";
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue ? context.payload.issue.number : context.payload.pull_request.number;
+            const labels = await github.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number
+            });
+            if (labels.data.some(l => l.name === label)) {
+              await github.issues.removeLabel({
+                owner,
+                repo,
+                issue_number,
+                name: label
+              });
+            }
